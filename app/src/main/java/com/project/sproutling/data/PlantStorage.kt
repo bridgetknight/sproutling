@@ -1,4 +1,4 @@
-package com.project.sproutling
+package com.project.sproutling.data
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -18,16 +18,21 @@ class PlantStorage(context: Context) {
 
     // Get all plants
     fun getPlants(): List<Plant> {
-        val jsonString = sharedPreferences.getString("plants", null)
-        val type = object : TypeToken<List<Plant>>() {}.type
-        return if (jsonString != null) gson.fromJson(jsonString, type) else emptyList()
+        val json = sharedPreferences.getString("plants", null)
+        return if (json != null) {
+            val type = object : TypeToken<List<Plant>>() {}.type
+            gson.fromJson(json, type)
+        } else {
+            emptyList()
+        }
     }
 
     // Add a single plant
     fun addPlant(plant: Plant) {
         val currentPlants = getPlants().toMutableList()
         currentPlants.add(plant)
-        savePlants(currentPlants)
+        val json = gson.toJson(currentPlants)
+        sharedPreferences.edit().putString("plants", json).apply()
     }
 
     // Remove a single plant by name
