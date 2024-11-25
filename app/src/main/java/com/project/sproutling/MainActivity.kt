@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 @RequiresApi(Build.VERSION_CODES.M)
 class MainActivity : ComponentActivity() {
@@ -31,9 +32,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             SproutlingTheme {
-                MainScreen(onWaterPlant = {
-                    waterPlant()
-                })
+                MainScreen(
+                    onWaterPlant = { waterPlant() },
+                    requestMoistureUpdate = { requestMoistureUpdate() },
+                    updateBlurb = { moistureData -> updateBlurb(moistureData) },
+                    parseMoistureResponse = { response -> parseMoistureResponse(response) }
+                    )
             }
         }
 
@@ -51,10 +55,38 @@ class MainActivity : ComponentActivity() {
 
     private fun waterPlant() {
         lifecycleScope.launch {
-            connection.sendJson("""{"command":"WATER"}""")
+            connection.sendJson("""{"command":"start_watering"}""")
             val response = connection.receiveJson()
             Log.d("MainActivity", "Response from Arduino: $response")
         }
+    }
+
+    private fun requestMoistureUpdate(): String {
+        connection.sendJson("""{"command":"moisture_update"}""")
+        return connection.receiveJson()
+    }
+
+    private fun updateStatus() {
+        lifecycleScope.launch {
+            try {
+                val response = requestMoistureUpdate()
+                Log.d("MainActivity", "Response from Arduino: $response")
+
+                // Parse the response and update the UI accordingly
+                val moistureData = parseMoistureResponse(response)
+                updateBlurb(moistureData)
+                println(moistureData)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error updating status", e)
+            }
+        }
+    }
+
+    private fun updateBlurb(moistureData: String) {
+    }
+
+    private fun parseMoistureResponse(response: String): Double {
+        return response.toDoubleOrNull() ?: 0.0
     }
 
     private suspend fun connectToArduino() {

@@ -18,7 +18,11 @@ import com.project.sproutling.utils.bottomNavigationItemsList
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(onWaterPlant: () -> Unit) {
+fun MainScreen(
+    onWaterPlant: () -> Unit,
+    requestMoistureUpdate: () -> Unit,
+    parseMoistureResponse: (String) -> String,
+    updateBlurb: (String) -> Unit) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute by remember(navBackStackEntry) {

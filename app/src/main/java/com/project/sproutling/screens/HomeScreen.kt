@@ -31,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,11 +59,26 @@ import com.project.sproutling.data.PlantStorage
 fun HomeScreen(
     innerPadding: PaddingValues,
     navController: NavHostController,
-    onWaterPlant: () -> Unit
+    onWaterPlant: () -> Unit,
+    requestMoistureUpdate: suspend () -> String,
+    parseMoistureResponse: (String) -> Double
 ) {
     val context = LocalContext.current
     val plantStorage = remember { PlantStorage(context) }
     val plants = remember { mutableStateOf(plantStorage.getPlants()) }
+    val moisture by remember {mutableStateOf("Unknown")}
+    val lastWatered by remember {mutableStateOf("Never")}
+
+    // Simulate receiving data and updating the UI
+    LaunchedEffect(Unit) {
+        try {
+            val response = requestMoistureUpdate() // Replace with your actual suspend function
+            val moistureData = parseMoistureResponse(response) // Parse the response
+            updateBlurb(moistureData)
+        } catch (e: Exception) {
+            Log.e("MainScreen", "Error updating status blurb", e)
+        }
+    }
 
     Surface(modifier = Modifier
         .fillMaxSize()
@@ -70,7 +86,7 @@ fun HomeScreen(
     ) {
         /* Populate homepage based on if plant exists */
         if (plants.value.isNotEmpty()) {
-            PlantExists(innerPadding, navController, plants, onWaterPlant)
+            PlantExists(innerPadding, navController, plants, onWaterPlant, moisture, lastWatered)
         } else {
             NoPlant(innerPadding, navController)
         }
@@ -121,7 +137,9 @@ fun PlantExists(
     innerPadding: PaddingValues,
     navController: NavHostController,
     plants: MutableState<List<Plant>>,
-    onWaterPlant: () -> Unit
+    onWaterPlant: () -> Unit,
+    moisture: Double,
+    lastWatered: String
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showPopUp by remember { mutableStateOf(false) }
@@ -250,65 +268,7 @@ fun PlantExists(
             }
         }
         // Plant Info
-        Surface(
-            color = Color(195, 221, 227),
-            modifier = Modifier
-                .padding(top = 18.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .width(400.dp)
-                .height(100.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(4.dp)
-                ) {
-                    // Categories
-                    Column(
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                    ) {
-                        Text(
-                            text = "Status: ",
-                            color = Color.Black,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Last Watered: ",
-                            color = Color.Black,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    // Values
-                    Column(
-                        verticalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .fillMaxHeight()
-                    ) {
-                        Text(
-                            text = "Healthy",
-                            color = Color.Green,
-                            fontSize = 16.sp,
-                            modifier = Modifier.align(Alignment.End)
-                        )
-                        Text(
-                            text = "02/04/2024 11:00 AM",
-                            color = Color.Black,
-                            fontSize = 16.sp,
-                            modifier = Modifier.align(Alignment.End)
-                        )
-                    }
-                }
-            }
-        }
+        StatusBlurb(moisture = moisture, lastWatered = lastWatered)
         ElevatedButton(
             modifier = Modifier
                 .padding(top = 18.dp)
@@ -321,3 +281,74 @@ fun PlantExists(
     }
 }
 
+@Composable
+fun StatusBlurb(moisture: Double, lastWatered: String) {
+
+    // Calculate status by moisture
+    val status = when (moisture) {
+        in 75.0..100.0 -> "Healthy"
+        in 50.0..74.9 -> "Needs Water Soon"
+        in  0.0..49.9 -> "Dry"
+        else -> "Invalid Moisture Level"
+    }
+
+    Surface(
+        color = Color(195, 221, 227),
+        modifier = Modifier
+            .padding(top = 18.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .width(400.dp)
+            .height(100.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(4.dp)
+            ) {
+                // Categories
+                Column(
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                ) {
+                    Text(
+                        text = "Status: ",
+                        color = Color.Black,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Last Watered: ",
+                        color = Color.Black,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                // Values
+                Column(
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                ) {
+                    Text(
+                        text = status,
+                        color = Color.Green,
+                        fontSize = 16.sp,
+                        modifier = Modifier.align(Alignment.End)
+                    )
+                    Text(
+                        text = lastWatered,
+                        color = Color.Black,
+                        fontSize = 16.sp,
+                        modifier = Modifier.align(Alignment.End)
+                    )
+                }
+            }
+        }
+    }
+}

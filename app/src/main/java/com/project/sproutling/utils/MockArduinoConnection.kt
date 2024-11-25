@@ -8,8 +8,8 @@ class MockArduinoConnection : ArduinoConnection("mock", 0) {
 
     init {
         // Predefined responses
-        responses["WATER"] = """{"status": "success","action":"watered"}"""
-        responses["STATUS"] = """{"moisture": 45,"lastWatered":"2024-11-23T14:00:00"}"""
+        responses["start_watering"] = """{"status": "success","action":"watered"}"""
+        responses["moisture_update"] = """{"moisture": 45,"lastWatered":"2024-11-23T14:00:00"}"""
     }
 
     override fun sendJson(data: String) {

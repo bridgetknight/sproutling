@@ -16,12 +16,15 @@ import com.project.sproutling.screens.SettingScreen
 fun SetUpNavGraph(
     navController: NavHostController,
     innerPadding: PaddingValues,
-    onWaterPlant: () -> Unit
+    onWaterPlant: () -> Unit,
+    requestMoistureUpdate: suspend () -> String,
+    parseMoistureResponse: (String) -> Double
 ) {
     NavHost(navController = navController,
-        startDestination = Screens.Home.route){ // TODO: CHANGE TO HOME
+        startDestination = Screens.Home.route){
             composable(Screens.Home.route){
-                HomeScreen(innerPadding = innerPadding, navController = navController, onWaterPlant = { onWaterPlant() })
+                HomeScreen(innerPadding = innerPadding, navController = navController, onWaterPlant = { onWaterPlant() },
+                    requestMoistureUpdate = requestMoistureUpdate, parseMoistureResponse = parseMoistureResponse)
             }
             composable(Screens.Notification.route){
                 NotificationScreen(innerPadding = innerPadding)
