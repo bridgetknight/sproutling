@@ -8,8 +8,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.project.sproutling.data.PlantStorage
 import com.project.sproutling.navigation.BottomNavigationBar
 import com.project.sproutling.navigation.SetUpNavGraph
+import com.project.sproutling.utils.ConnectionState
 import com.project.sproutling.utils.bottomNavigationItemsList
 
 /**
@@ -21,8 +23,10 @@ import com.project.sproutling.utils.bottomNavigationItemsList
 fun MainScreen(
     onWaterPlant: () -> Unit,
     requestMoistureUpdate: () -> Unit,
-    parseMoistureResponse: (String) -> String,
-    updateBlurb: (String) -> Unit) {
+    updateStatus: suspend (updateMoisture: (String) -> Unit, updateLastWatered: (String) -> Unit, plantStorage: PlantStorage) -> Unit,
+    connectToArduino: suspend () -> Unit,
+    connectionState: ConnectionState
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute by remember(navBackStackEntry) {
@@ -75,6 +79,6 @@ fun MainScreen(
             }
         }
     ) {innerPadding->
-        SetUpNavGraph(navController = navController, innerPadding = innerPadding, onWaterPlant = { onWaterPlant() })
+        SetUpNavGraph(navController = navController, innerPadding = innerPadding, onWaterPlant = { onWaterPlant() }, updateStatus = updateStatus, connectToArduino = { connectToArduino() }, connectionState = connectionState)
     }
 }

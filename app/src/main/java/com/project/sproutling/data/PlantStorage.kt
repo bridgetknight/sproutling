@@ -4,14 +4,17 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
-class PlantStorage(context: Context) {
+class PlantStorage(private val context: Context) {
     private val sharedPreferences: SharedPreferences =
         context.getSharedPreferences("PlantStorage", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     // Save a list of plants
-    fun savePlants(plants: List<Plant>) {
+    private fun savePlants(plants: List<Plant>) {
         val jsonString = gson.toJson(plants)
         sharedPreferences.edit().putString("plants", jsonString).apply()
     }
@@ -40,5 +43,38 @@ class PlantStorage(context: Context) {
         val currentPlants = getPlants().toMutableList()
         currentPlants.removeAll { it.name == name }
         savePlants(currentPlants)
+    }
+
+    // Get the last watered time for a plant
+    fun getLastWatered(plantName: String): String? {
+        val plants = getPlants()
+        return plants.find { it.name == plantName }?.lastWatered
+    }
+
+    // Update last watered time for a plant
+    fun updateLastWatered(plantName: String) {
+        val plants = getPlants().toMutableList()
+        val plant = plants.find { it.name == plantName }
+
+        if (plant != null) {
+            // If justWatered is true, set the current time as the last watered time
+            plant.lastWatered = getCurrentFormattedTime() // Store as string of timestamp
+            savePlants(plants) // Save the updated list back to SharedPreferences
+        }
+    }
+
+    private fun getCurrentFormattedTime(): String {
+        // Get current time in milliseconds (instant)
+        val currentTimeMillis = System.currentTimeMillis()
+
+        // Create an Instant object from current time
+        val instant = Instant.ofEpochMilli(currentTimeMillis)
+
+        // Define the formatter for the desired output format
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+            .withZone(ZoneId.systemDefault())  // Use the system's default time zone
+
+        // Format the instant to a string
+        return formatter.format(instant)
     }
 }

@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -43,15 +44,19 @@ import com.project.sproutling.data.Plant
 import com.project.sproutling.data.PlantStorage
 import com.project.sproutling.navigation.Screens
 
-val headerGreen = Color(105, 137, 116)
-
 @Composable
-fun AddPlant(innerPadding: PaddingValues, navController: NavHostController) {
-    var name by remember { mutableStateOf("") }
-    var species by remember { mutableStateOf("") }
+fun EditPlant(innerPadding: PaddingValues, navController: NavHostController) {
+    val headerGreen = Color(105, 137, 116)
     val context = LocalContext.current
     val plantStorage = remember { PlantStorage(context) }
-    var showPopUp by remember { mutableStateOf(false)}
+    var showPopUp by remember { mutableStateOf(false) }
+
+    // Get current plant
+    val plantToEdit = plantStorage.getPlants().first()
+
+    // Initialize state with current plant values
+    var name by remember { mutableStateOf(plantToEdit.name) }
+    var species by remember { mutableStateOf(plantToEdit.species) }
 
     Column(
         modifier = Modifier
@@ -62,7 +67,7 @@ fun AddPlant(innerPadding: PaddingValues, navController: NavHostController) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Create Your Plant",
+            text = "Edit ${plantToEdit.name}",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = Color(105, 137, 116),
@@ -71,7 +76,7 @@ fun AddPlant(innerPadding: PaddingValues, navController: NavHostController) {
         )
         Row(
             modifier = Modifier
-                .fillMaxWidth(0.85f)  // Changed from 0.896f
+                .fillMaxWidth(0.85f)
                 .height(100.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
@@ -93,8 +98,6 @@ fun AddPlant(innerPadding: PaddingValues, navController: NavHostController) {
 
             // Add spacing here
             Spacer(modifier = Modifier.width(24.dp))
-
-            // Name Input
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -108,15 +111,14 @@ fun AddPlant(innerPadding: PaddingValues, navController: NavHostController) {
                 modifier = Modifier
                     .padding(bottom = 11.dp)
             )
-        } // End name/icon row
+        }
         Row(
             modifier = Modifier
-                .fillMaxWidth(0.85f)  // Changed from 0.896f
+                .fillMaxWidth(0.85f)
                 .height(100.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Species Input
             OutlinedTextField(
                 value = species,
                 onValueChange = { species = it },
@@ -132,31 +134,59 @@ fun AddPlant(innerPadding: PaddingValues, navController: NavHostController) {
                     .fillMaxWidth()
             )
         }
-        ElevatedButton(
+        Row(
             modifier = Modifier
                 .padding(top = 16.dp)
-                .size(width = 135.dp, height = 40.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(105, 137, 116)),
-            onClick = {
-                val newPlant = Plant(name = name, species = species)
-                plantStorage.addPlant(newPlant)
-                showPopUp = true
-            })
-        {
-            Text(text = "Save Plant", color = Color.White, fontSize = 16.sp)
+                .fillMaxWidth(0.85f),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            // Cancel button
+            ElevatedButton(
+                modifier = Modifier
+                    .size(width = 135.dp, height = 40.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray),
+                onClick = {
+                    navController.navigate("home") {
+                        popUpTo(Screens.Home.route) {
+                            inclusive = true
+                        }
+                    }
+                }
+            ) {
+                Text(text = "Cancel", color = Color.White, fontSize = 16.sp)
+            }
+
+            // Save button
+            ElevatedButton(
+                modifier = Modifier
+                    .size(width = 135.dp, height = 40.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(105, 137, 116)),
+                onClick = {
+                    // Remove the old plant and add the updated one
+                    plantStorage.removePlantByName(plantToEdit.name)
+                    val updatedPlant = Plant(
+                        name = name,
+                        species = species,
+                        lastWatered = plantToEdit.lastWatered
+                    )
+                    plantStorage.addPlant(updatedPlant)
+                    showPopUp = true
+                }
+            ) {
+                Text(text = "Save Changes", color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center)
+            }
         }
 
         if (showPopUp) {
             AlertDialog(
                 onDismissRequest = {
-                    // Handle dismiss if necessary
                     showPopUp = false
                 },
                 title = {
-                    Text(text = "Plant Added")
+                    Text(text = "Plant Updated")
                 },
                 text = {
-                    Text(text = "Your plant has been successfully added.")
+                    Text(text = "Your plant has been successfully updated.")
                 },
                 confirmButton = {
                     TextButton(

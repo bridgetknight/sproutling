@@ -7,4 +7,6 @@ sealed class Screens(var route: String) {
     object  Setting : Screens("setting")
     object Plants : Screens("plants")
     object AddPlant : Screens("addPlant")
+    object EditPlant : Screens("editPlant")
+
 }

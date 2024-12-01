@@ -1,5 +1,6 @@
 package com.project.sproutling.screens
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedButton
@@ -45,7 +47,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,41 +55,110 @@ import androidx.navigation.NavHostController
 import com.project.sproutling.R
 import com.project.sproutling.data.Plant
 import com.project.sproutling.data.PlantStorage
+import com.project.sproutling.utils.ConnectionState
+import com.project.sproutling.utils.NotificationService
+import com.project.sproutling.utils.SettingsStorage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
     innerPadding: PaddingValues,
     navController: NavHostController,
     onWaterPlant: () -> Unit,
-    requestMoistureUpdate: suspend () -> String,
-    parseMoistureResponse: (String) -> Double
+    updateStatus: suspend (updateMoisture: (String) -> Unit, updateLastWatered: (String) -> Unit, plantStorage: PlantStorage) -> Unit,
+    connectToArduino: suspend () -> Unit,
+    connectionState: ConnectionState
 ) {
+    Log.d("HomeScreen", "HomeScreen recomposition")
     val context = LocalContext.current
+    val notificationService = remember { NotificationService(context) }
     val plantStorage = remember { PlantStorage(context) }
     val plants = remember { mutableStateOf(plantStorage.getPlants()) }
-    val moisture by remember {mutableStateOf("Unknown")}
-    val lastWatered by remember {mutableStateOf("Never")}
+    val moisture = remember { mutableStateOf("Loading...") }
+    val lastWatered = remember { mutableStateOf("Loading...") }
+    val settingsStorage = remember { SettingsStorage(context) }
 
-    // Simulate receiving data and updating the UI
-    LaunchedEffect(Unit) {
-        try {
-            val response = requestMoistureUpdate() // Replace with your actual suspend function
-            val moistureData = parseMoistureResponse(response) // Parse the response
-            updateBlurb(moistureData)
-        } catch (e: Exception) {
-            Log.e("MainScreen", "Error updating status blurb", e)
-        }
-    }
-
-    Surface(modifier = Modifier
-        .fillMaxSize()
-        .background(Color(247, 247, 247))
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(247, 247, 247))
     ) {
-        /* Populate homepage based on if plant exists */
-        if (plants.value.isNotEmpty()) {
-            PlantExists(innerPadding, navController, plants, onWaterPlant, moisture, lastWatered)
-        } else {
+        // If there is a plant available, check its status and update the interface
+        if (plants.value.isEmpty()) {
             NoPlant(innerPadding, navController)
+        } else {
+            LaunchedEffect(connectionState) {
+                Log.d("HomeScreen", "LaunchedEffect started with state: $connectionState")
+
+                when (connectionState) {
+                    ConnectionState.CONNECTED -> {
+                        try {
+                            // Set up periodic updates and notifications
+                            while (true) {
+                                updateStatus(
+                                    { newMoisture ->
+                                        moisture.value = newMoisture
+                                        // Check moisture level and send alert if needed
+                                        notificationService.checkAndSendMoistureAlert(
+                                            plants.value.first().name,
+                                            newMoisture
+                                        )
+                                    },
+                                    { newLastWatered ->
+                                        lastWatered.value = newLastWatered
+                                        // Check watering time and send reminder if needed
+                                        notificationService.checkAndSendWateringReminder(
+                                            plants.value.first().name,
+                                            newLastWatered
+                                        )
+                                    },
+                                    plantStorage
+                                )
+                                // Convert minutes to milliseconds
+                                val intervalMs = settingsStorage.getCheckInterval() * 60 * 1000L
+                                delay(intervalMs)
+                            }
+                        } catch (e: Exception) {
+                            Log.e("HomeScreen", "Error in update", e)
+                        }
+                    }
+
+                    ConnectionState.OFFLINE -> {
+                        moisture.value = "Offline"
+                        lastWatered.value = "Offline"
+                    }
+
+                    ConnectionState.CONNECTING -> {
+                        moisture.value = "Loading..."
+                        lastWatered.value = "Loading..."
+                    }
+                }
+            }
+
+            // Set up periodic plant messages
+            LaunchedEffect(Unit) {
+                while (true) {
+                    delay(12 * 60 * 60 * 1000) // 12 hours
+                    if (plants.value.isNotEmpty()) {
+                        notificationService.sendPlantMessage(plants.value.first().name)
+                    }
+                }
+            }
+            PlantExists(
+                innerPadding = innerPadding,
+                navController = navController,
+                plants = plants,
+                onWaterPlant = onWaterPlant,
+                moisture = moisture,
+                lastWatered = lastWatered,
+                updateStatus = updateStatus,
+                connectToArduino = connectToArduino,
+                connectionState = connectionState,
+                notificationService = notificationService
+            )
         }
     }
 }
@@ -138,8 +208,12 @@ fun PlantExists(
     navController: NavHostController,
     plants: MutableState<List<Plant>>,
     onWaterPlant: () -> Unit,
-    moisture: Double,
-    lastWatered: String
+    moisture: MutableState<String>,
+    lastWatered: MutableState<String>,
+    updateStatus: suspend (updateMoisture: (String) -> Unit, updateLastWatered: (String) -> Unit, plantStorage: PlantStorage) -> Unit,
+    connectToArduino: suspend () -> Unit,
+    connectionState: ConnectionState,
+    notificationService: NotificationService
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showPopUp by remember { mutableStateOf(false) }
@@ -208,16 +282,40 @@ fun PlantExists(
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    modifier = Modifier,
+                    modifier = Modifier
+                        .background(Color(225, 243, 242)),
                     offset = DpOffset((5).dp, (-5).dp)
                 ) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = "Edit Plant",
+                                fontSize = 15.sp,
+                                color = Color(105, 137, 116),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 10.dp)
+                                    .wrapContentHeight(align = Alignment.CenterVertically)
+                            )
+                        },
+                        onClick = {
+                            showMenu = false
+                            navController.navigate("editPlant")
+                        }
+                    )
+                    // Divider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(105, 137, 116).copy(alpha = 0.3f))
+                    )
                     DropdownMenuItem(
                         text = {
                             Text(
                                 text = "Delete Plant",
                                 color = Color.Red,
                                 fontSize = 15.sp,
-                                textAlign = TextAlign.Center,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 10.dp)
@@ -267,29 +365,145 @@ fun PlantExists(
                 }
             }
         }
-        // Plant Info
-        StatusBlurb(moisture = moisture, lastWatered = lastWatered)
-        ElevatedButton(
-            modifier = Modifier
-                .padding(top = 18.dp)
-                .size(width = 135.dp, height = 40.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(121, 194, 211)),
-            onClick = { onWaterPlant() })
-        {
-            Text(text = "Water Me!", color = Color.White, fontSize = 16.sp)
+        // First when statement for the blurb
+        when (connectionState) {
+            ConnectionState.CONNECTING -> ConnectingBlurb()
+            else -> StatusBlurb(moisture = moisture.value, lastWatered = lastWatered.value)
+        }
+
+        // Second when statement for the buttons
+        when (connectionState) {
+            ConnectionState.CONNECTING -> {
+                // Empty button-sized spacer
+                Spacer(
+                    modifier = Modifier
+                        .padding(top = (18).dp)
+                        .size(width = 135.dp, height = 39.dp) // Height accounts for both buttons + padding
+                )
+            }
+            ConnectionState.OFFLINE -> {
+                ElevatedButton(
+                    modifier = Modifier
+                        .padding(top = 18.dp)
+                        .size(width = 175.dp, height = 40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(105, 137, 116)),
+                    onClick = {
+                        CoroutineScope(Dispatchers.Main).launch {
+                            connectToArduino()
+                        }
+                    }
+                ) {
+                    Text(text = "Retry Connection", color = Color.White, fontSize = 16.sp)
+                }
+            }
+            ConnectionState.CONNECTED -> {
+                //StatusBlurb(moisture = moisture.value, lastWatered = lastWatered.value)
+                // Water and Refresh buttons
+                ElevatedButton(
+                    modifier = Modifier
+                        .padding(top = 18.dp)
+                        .size(width = 135.dp, height = 40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(121, 194, 211)),
+                    onClick = {
+                        CoroutineScope(Dispatchers.Main).launch {
+                            onWaterPlant()
+                            delay(2500)
+                            plantStorage.updateLastWatered(plant.name)
+                            updateStatus(
+                                { newMoisture -> moisture.value = newMoisture },
+                                { newLastWatered -> lastWatered.value = newLastWatered },
+                                plantStorage
+                            )
+                        }
+                    }
+                ) {
+                    Text(text = "Water Me!", color = Color.White, fontSize = 16.sp)
+                }
+                ElevatedButton(
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .size(width = 135.dp, height = 40.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(105, 137, 116)),
+                    onClick = {
+                        CoroutineScope(Dispatchers.Main).launch {
+                            updateStatus(
+                                { newMoisture -> moisture.value = newMoisture },
+                                { newLastWatered -> lastWatered.value = newLastWatered },
+                                plantStorage
+                            )
+                        }
+                    }
+                ) {
+                    Text(text = "Refresh", color = Color.White, fontSize = 16.sp)
+                }
+            }
         }
     }
 }
 
 @Composable
-fun StatusBlurb(moisture: Double, lastWatered: String) {
+fun ConnectingBlurb() {
+    Surface(
+        color = Color(195, 221, 227),
+        modifier = Modifier
+            .padding(top = 18.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .fillMaxWidth(0.85f)
+            .height(100.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),  // Add same padding as StatusBlurb
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                color = Color(105, 137, 116),
+                strokeWidth = 2.dp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Connecting...",
+                color = Color(105, 137, 116),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+fun StatusBlurb(moisture: String, lastWatered: String) {
+    Log.d("StatusBlurb", "Recomposing with moisture: $moisture, lastWatered: $lastWatered")
+
 
     // Calculate status by moisture
-    val status = when (moisture) {
-        in 75.0..100.0 -> "Healthy"
-        in 50.0..74.9 -> "Needs Water Soon"
-        in  0.0..49.9 -> "Dry"
-        else -> "Invalid Moisture Level"
+    val status: String = when (moisture) {
+        "Loading..." -> "Loading..."
+        "Error" -> "Error"
+        "Offline" -> "Offline"
+        else -> try {
+            val moistureValue = moisture.toDouble()
+            when (moistureValue) {
+                in 75.0..100.0 -> "Healthy"
+                in 50.0..74.9 -> "Needs Water Soon"
+                in 0.0..49.9 -> "Dry"
+                else -> "Invalid Moisture Level"
+            }
+        } catch (e: NumberFormatException) {
+            "Error"
+        }
+    }
+
+    val statusColor = when (status) {
+        "Healthy" -> Color.Green
+        "Needs Water Soon" -> Color.Yellow
+        "Dry" -> Color.Red
+        "Error" -> Color.Red
+        "Offline" -> Color.Gray
+        else -> Color.Black
     }
 
     Surface(
@@ -297,7 +511,7 @@ fun StatusBlurb(moisture: Double, lastWatered: String) {
         modifier = Modifier
             .padding(top = 18.dp)
             .clip(RoundedCornerShape(12.dp))
-            .width(400.dp)
+            .fillMaxWidth(0.85f)  // Changed from using fixed width
             .height(100.dp)
     ) {
         Column(
@@ -337,7 +551,7 @@ fun StatusBlurb(moisture: Double, lastWatered: String) {
                 ) {
                     Text(
                         text = status,
-                        color = Color.Green,
+                        color = statusColor,
                         fontSize = 16.sp,
                         modifier = Modifier.align(Alignment.End)
                     )
@@ -351,4 +565,26 @@ fun StatusBlurb(moisture: Double, lastWatered: String) {
             }
         }
     }
+}
+
+@Composable
+fun ConnectionErrorDialog(
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Connection Error") },
+        text = { Text("Could not connect to Arduino right now") },
+        confirmButton = {
+            TextButton(onClick = onRetry) {
+                Text("Retry")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Dismiss")
+            }
+        }
+    )
 }

@@ -67,8 +67,10 @@ fun SproutlingTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            // Change to your app's green color
+            window.statusBarColor = Color(146, 185, 145).toArgb()
+            // Set to true since you're using a light theme and dark icons will be more visible
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
         }
     }
 

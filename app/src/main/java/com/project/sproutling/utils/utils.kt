@@ -1,8 +1,10 @@
 package com.project.sproutling.utils
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Settings
 import com.project.sproutling.navigation.NavigationItem
 import com.project.sproutling.navigation.Screens
 
@@ -14,23 +16,9 @@ val bottomNavigationItemsList = listOf(
         unSelectedIcon = Icons.Outlined.Home,
     ),
     NavigationItem(
-        title = "Profile",
-        route = Screens.Profile.route,
-        selectedIcon = Icons.Filled.Person,
-        unSelectedIcon = Icons.Outlined.Person,
-    ),
-    NavigationItem(
-        title = "Notification",
-        route = Screens.Notification.route,
-        selectedIcon = Icons.Filled.Notifications,
-        unSelectedIcon = Icons.Outlined.Notifications,
-        badgeCount = 9
-    ),
-    NavigationItem(
         title = "Setting",
         route = Screens.Setting.route,
         selectedIcon = Icons.Filled.Settings,
-        unSelectedIcon = Icons.Outlined.Settings,
-        hasBadgeDot = true
+        unSelectedIcon = Icons.Outlined.Settings
     ),
 )
