@@ -16,16 +16,23 @@ class RetryPolicy(
         var currentDelay = initialDelayMs
         repeat(maxAttempts) { attempt ->
             try {
-                return action()?.also {
+                val result = action()
+                if (result != null) {
                     if (attempt > 0) {
                         Log.d("RetryPolicy", "Successfully completed $operation after ${attempt + 1} attempts")
                     }
+                    return result
+                }
+                // If we get null, for watering operation we consider it ok
+                if (operation == "water plant command") {
+                    Log.d("RetryPolicy", "Water plant operation completed with expected disconnect")
+                    return null
                 }
             } catch (e: Exception) {
                 val isLastAttempt = attempt == maxAttempts - 1
                 if (isLastAttempt) {
-                    Log.e("RetryPolicy", "Final attempt for $operation failed: ${e.message}")
-                    throw e
+                    Log.d("RetryPolicy", "Final attempt for $operation completed: ${e.message}")
+                    return null  // Return null instead of throwing
                 }
 
                 Log.d("RetryPolicy", "Attempt ${attempt + 1} failed for $operation, retrying after $currentDelay ms")

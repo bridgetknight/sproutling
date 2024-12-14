@@ -1,6 +1,8 @@
 package com.project.sproutling.screens
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +40,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,13 +59,17 @@ import com.project.sproutling.R
 import com.project.sproutling.data.Plant
 import com.project.sproutling.data.PlantStorage
 import com.project.sproutling.utils.ConnectionState
+import com.project.sproutling.utils.MoistureCheckWorker
 import com.project.sproutling.utils.NotificationService
+import com.project.sproutling.utils.PlantMessageWorker
 import com.project.sproutling.utils.SettingsStorage
+import com.project.sproutling.utils.WateringReminderWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun HomeScreen(
     innerPadding: PaddingValues,
@@ -80,6 +87,30 @@ fun HomeScreen(
     val moisture = remember { mutableStateOf("Loading...") }
     val lastWatered = remember { mutableStateOf("Loading...") }
     val settingsStorage = remember { SettingsStorage(context) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(plants.value.isEmpty()) {
+        if (plants.value.isNotEmpty()) {
+            val checkInterval = settingsStorage.getCheckInterval() // Get interval from settings
+            PlantMessageWorker.schedule(context)
+            MoistureCheckWorker.schedule(context, checkInterval)
+            WateringReminderWorker.schedule(context)
+        } else {
+            PlantMessageWorker.cancel(context)
+            MoistureCheckWorker.cancel(context)
+            WateringReminderWorker.cancel(context)
+        }
+    }
+
+    // Helper function to check if we have valid moisture data
+    fun hasValidMoistureData(): Boolean {
+        return try {
+            val moistureNum = moisture.value.toDoubleOrNull()
+            moistureNum != null && moistureNum > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     Surface(
         modifier = Modifier
@@ -96,57 +127,48 @@ fun HomeScreen(
                 when (connectionState) {
                     ConnectionState.CONNECTED -> {
                         try {
-                            // Set up periodic updates and notifications
+                            // Initial update
+                            updateStatus(
+                                { newMoisture -> moisture.value = newMoisture },
+                                { newLastWatered -> lastWatered.value = newLastWatered },
+                                plantStorage
+                            )
+
                             while (true) {
-                                updateStatus(
-                                    { newMoisture ->
-                                        moisture.value = newMoisture
-                                        // Check moisture level and send alert if needed
-                                        notificationService.checkAndSendMoistureAlert(
-                                            plants.value.first().name,
-                                            newMoisture
-                                        )
-                                    },
-                                    { newLastWatered ->
-                                        lastWatered.value = newLastWatered
-                                        // Check watering time and send reminder if needed
-                                        notificationService.checkAndSendWateringReminder(
-                                            plants.value.first().name,
-                                            newLastWatered
-                                        )
-                                    },
-                                    plantStorage
-                                )
-                                // Convert minutes to milliseconds
                                 val intervalMs = settingsStorage.getCheckInterval() * 60 * 1000L
                                 delay(intervalMs)
+
+                                updateStatus(
+                                    { newMoisture -> moisture.value = newMoisture },
+                                    { newLastWatered -> lastWatered.value = newLastWatered },
+                                    plantStorage
+                                )
                             }
                         } catch (e: Exception) {
-                            Log.e("HomeScreen", "Error in update", e)
+                            Log.e("HomeScreen", "Error in update loop", e)
+                            moisture.value = "Error"
+                            lastWatered.value = "Error"
                         }
                     }
 
                     ConnectionState.OFFLINE -> {
-                        moisture.value = "Offline"
-                        lastWatered.value = "Offline"
+                        // Only update to Offline if we don't have valid data
+                        if (!hasValidMoistureData()) {
+                            moisture.value = "Offline"
+                            lastWatered.value = "Offline"
+                        }
                     }
 
                     ConnectionState.CONNECTING -> {
-                        moisture.value = "Loading..."
-                        lastWatered.value = "Loading..."
+                        // Only update to Loading if we don't have valid data
+                        if (!hasValidMoistureData()) {
+                            moisture.value = "Loading..."
+                            lastWatered.value = "Loading..."
+                        }
                     }
                 }
             }
 
-            // Set up periodic plant messages
-            LaunchedEffect(Unit) {
-                while (true) {
-                    delay(12 * 60 * 60 * 1000) // 12 hours
-                    if (plants.value.isNotEmpty()) {
-                        notificationService.sendPlantMessage(plants.value.first().name)
-                    }
-                }
-            }
             PlantExists(
                 innerPadding = innerPadding,
                 navController = navController,
@@ -202,6 +224,7 @@ fun NoPlant(innerPadding: PaddingValues, navController: NavHostController) {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun PlantExists(
     innerPadding: PaddingValues,
@@ -269,7 +292,7 @@ fun PlantExists(
                 IconButton(
                     onClick = { showMenu = true },
                     modifier = Modifier
-                        .offset(x=(-5).dp)
+                        .offset(x = (-5).dp)
                         .zIndex(3f)
                 ) {
                     Icon(

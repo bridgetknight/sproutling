@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.project.sproutling"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.project.sproutling"
         minSdk = 21
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -50,6 +50,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+    implementation("androidx.startup:startup-runtime:1.2.0")
+    implementation("androidx.compose.material:material:1.5.4")
     implementation("ru.gildor.coroutines:kotlin-coroutines-okhttp:1.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")

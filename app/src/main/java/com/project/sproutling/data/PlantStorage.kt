@@ -2,6 +2,8 @@ package com.project.sproutling.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.time.Instant
@@ -51,7 +53,18 @@ class PlantStorage(private val context: Context) {
         return plants.find { it.name == plantName }?.lastWatered
     }
 
+    fun getLastMoisture(): String? {
+        val sharedPrefs = context.getSharedPreferences("plant_data", Context.MODE_PRIVATE)
+        return sharedPrefs.getString("last_moisture", null)
+    }
+
+    fun setLastMoisture(moisture: String) {
+        val sharedPrefs = context.getSharedPreferences("plant_data", Context.MODE_PRIVATE)
+        sharedPrefs.edit().putString("last_moisture", moisture).apply()
+    }
+
     // Update last watered time for a plant
+    @RequiresApi(Build.VERSION_CODES.O)
     fun updateLastWatered(plantName: String) {
         val plants = getPlants().toMutableList()
         val plant = plants.find { it.name == plantName }
@@ -63,6 +76,7 @@ class PlantStorage(private val context: Context) {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun getCurrentFormattedTime(): String {
         // Get current time in milliseconds (instant)
         val currentTimeMillis = System.currentTimeMillis()

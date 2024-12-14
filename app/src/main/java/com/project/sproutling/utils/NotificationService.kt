@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import com.project.sproutling.R
 import java.time.LocalDateTime
@@ -14,7 +15,6 @@ import java.time.temporal.ChronoUnit
 class NotificationService(private val context: Context) {
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-    // Channel IDs
     companion object {
         const val REMINDERS_CHANNEL_ID = "watering_reminders"
         const val MESSAGES_CHANNEL_ID = "plant_messages"
@@ -55,32 +55,9 @@ class NotificationService(private val context: Context) {
         }
     }
 
-    fun checkAndSendWateringReminder(plantName: String, newLastWatered: String) {
-        val notification = NotificationCompat.Builder(context, REMINDERS_CHANNEL_ID)
-            .setSmallIcon(R.drawable.planticon)
-            .setContentTitle("Time to Water!")
-            .setContentText("$plantName needs watering")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
-
-        notificationManager.notify(1, notification)
-    }
-
-
-    fun sendPlantMessage(plantName: String) {
-        // List of possible messages from plant
-        val messages = listOf(
-            "It's me, $plantName! How are you?",
-            "I hope you're having a good day!",
-            "What a lovely day to be a plant!",
-            "You're doing great at plant parenting!",
-            "Thanks for taking care of me!",
-            "I'm growing strong thanks to you!"
-        )
-
-        fun checkAndSendWateringReminder(plantName: String, lastWateredTime: String?) {
-            if (lastWateredTime == null) return
-
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun checkAndSendWateringReminder(plantName: String, lastWateredTime: String) {
+        try {
             val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
                 .withZone(ZoneId.systemDefault())
             val lastWatered = LocalDateTime.parse(lastWateredTime, formatter)
@@ -98,7 +75,20 @@ class NotificationService(private val context: Context) {
 
                 notificationManager.notify(1, notification)
             }
+        } catch (e: Exception) {
+            // Handle date parsing errors
         }
+    }
+
+    fun sendPlantMessage(plantName: String) {
+        val messages = listOf(
+            "It's me, $plantName! How are you?",
+            "I hope you're having a good day!",
+            "What a lovely day to be a plant!",
+            "You're doing great at plant parenting!",
+            "Thanks for taking care of me!",
+            "I'm growing strong thanks to you!"
+        )
 
         val randomMessage = messages.random()
 
@@ -112,9 +102,12 @@ class NotificationService(private val context: Context) {
         notificationManager.notify(2, notification)
     }
 
-
     fun checkAndSendMoistureAlert(plantName: String, moisture: String) {
         try {
+            if (moisture == "Loading..." || moisture == "Offline" || moisture == "Error") {
+                return
+            }
+
             val moistureValue = moisture.toDouble()
             if (moistureValue < 50.0) {
                 val notification = NotificationCompat.Builder(context, WATER_ALERTS_CHANNEL_ID)
@@ -127,7 +120,7 @@ class NotificationService(private val context: Context) {
                 notificationManager.notify(3, notification)
             }
         } catch (e: NumberFormatException) {
-            // Handle non-numeric moisture values (like "Loading..." or "Error")
+            // Handle non-numeric moisture values
         }
     }
 }

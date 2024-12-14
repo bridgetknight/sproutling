@@ -24,7 +24,7 @@ open class ArduinoConnection(private val ipAddress: String, private val portNumb
             close() // Close existing connection if any
             socket = Socket()
             val socketAddress = InetSocketAddress(ipAddress, portNumber)
-            socket?.connect(socketAddress, 10000)  // 10-second timeout
+            socket?.connect(socketAddress, 15000)  // Increased to 15-second timeout
 
             if (socket?.isConnected == true) {
                 Log.d("ArduinoConnection", "Successfully connected to $ipAddress:$portNumber")
@@ -119,6 +119,54 @@ open class ArduinoConnection(private val ipAddress: String, private val portNumb
             throw e
         }
     }
+
+    @Synchronized
+    fun sendCommandAndGetResponse(data: String): Map<String, String>? {
+        try {
+            if (!isConnected()) {
+                Log.d("ArduinoConnection", "Socket disconnected, attempting to reconnect...")
+                open()
+            }
+
+            Log.d("ArduinoConnection", "Sending data: $data")
+            socket?.getOutputStream()?.write((data + "\n").toByteArray())
+            socket?.getOutputStream()?.flush()
+            Log.d("ArduinoConnection", "Data sent successfully")
+
+            // Small delay to ensure data is sent and response is ready
+            Thread.sleep(100)
+
+            val input = socket?.getInputStream()
+            if (input == null) {
+                Log.e("ArduinoConnection", "Input stream is null")
+                return null
+            }
+
+            val reader = BufferedReader(InputStreamReader(input))
+            Log.d("ArduinoConnection", "Waiting for response...")
+
+            val jsonResponse = reader.readLine()
+            if (jsonResponse == null) {
+                Log.e("ArduinoConnection", "Received null response")
+                return null
+            }
+
+            Log.d("ArduinoConnection", "Received response: $jsonResponse")
+
+            val jsonObject = JSONObject(jsonResponse)
+            Log.d("ArduinoConnection", "Parsed JSON: $jsonObject")
+
+            val responseMap = mutableMapOf<String, String>()
+            jsonObject.keys().forEach { key ->
+                responseMap[key] = jsonObject.get(key).toString()
+            }
+
+            return responseMap
+        } catch (e: Exception) {
+            Log.e("ArduinoConnection", "Error in command-response cycle: ${e.message}")
+            return null  // Return null instead of throwing
+        }
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.M)
@@ -130,10 +178,3 @@ fun isNetworkAvailable(context: Context) =
                     || hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
         } ?: false
     }
-
-@RequiresApi(Build.VERSION_CODES.M)
-fun main() {
-    // Test the connection to the Arduino socket
-    val connection = ArduinoConnection("192.168.100.234", 80)
-    connection.open()
-}

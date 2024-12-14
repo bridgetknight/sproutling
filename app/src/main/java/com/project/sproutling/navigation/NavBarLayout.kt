@@ -19,7 +19,7 @@ fun BottomNavigationBar(
     onClick: (NavigationItem) -> Unit,
 ) {
     NavigationBar(
-        containerColor= Color(146, 185, 145)
+        containerColor = Color(146, 185, 145)
     ) {
         items.forEachIndexed { index, navigationItem ->
             NavigationBarItem(
@@ -32,8 +32,10 @@ fun BottomNavigationBar(
                 ),
                 selected = currentRoute == navigationItem.route,
                 onClick = {
-                    onClick(navigationItem)
-                          },
+                    if (currentRoute != navigationItem.route) {  // Only navigate if we're not already there
+                        onClick(navigationItem)
+                    }
+                },
                 icon = {
                     BadgedBox(badge = {
                         if (navigationItem.badgeCount != null) {
@@ -49,11 +51,13 @@ fun BottomNavigationBar(
                                 navigationItem.selectedIcon
                             } else {
                                 navigationItem.unSelectedIcon
-                            }, contentDescription = navigationItem.title
+                            },
+                            contentDescription = navigationItem.title
                         )
                     }
                 },
-                alwaysShowLabel = false)
+                alwaysShowLabel = false
+            )
         }
     }
-} 
+}

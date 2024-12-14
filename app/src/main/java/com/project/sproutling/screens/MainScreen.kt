@@ -57,24 +57,26 @@ fun MainScreen(
                 )
         },*/
         bottomBar = {
-            BottomNavigationBar(items = bottomNavigationItemsList, currentRoute = currentRoute ){ currentNavigationItem->
-                navController.navigate(currentNavigationItem.route){
-                    // Pop up to the start destination of the graph to
-                    // avoid building up a large stack of destinations
-                    // on the back stack as users select items
-                    navController.graph.startDestinationRoute?.let { startDestinationRoute ->
-                        // Pop up to the start destination, clearing the back stack
-                        popUpTo(startDestinationRoute) {
-                            inclusive = true // Ensure the stack is fully cleared
-                            saveState = false // Disable saving state when clearing
+            BottomNavigationBar(
+                items = bottomNavigationItemsList,
+                currentRoute = currentRoute
+            ) { currentNavigationItem ->
+                if (currentRoute != currentNavigationItem.route) {  // Only navigate if it's a different route
+                    navController.navigate(currentNavigationItem.route) {
+                        navController.graph.startDestinationRoute?.let { startDestinationRoute ->
+                            // Pop up to the start destination, clearing the back stack
+                            popUpTo(startDestinationRoute) {
+                                inclusive = true // Ensure the stack is fully cleared
+                                saveState = false // Disable saving state when clearing
+                            }
                         }
+
+                        // Configure navigation to avoid multiple instances of the same destination
+                        launchSingleTop = true
+
+                        // Restore state when re-selecting a previously selected item
+                        restoreState = false
                     }
-
-                    // Configure navigation to avoid multiple instances of the same destination
-                    launchSingleTop = true
-
-                    // Restore state when re-selecting a previously selected item
-                    restoreState = false
                 }
             }
         }

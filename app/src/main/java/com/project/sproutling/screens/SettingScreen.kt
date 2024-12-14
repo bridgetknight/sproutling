@@ -151,7 +151,6 @@ fun SettingScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp),
-                    label = { Text("Arduino IP Address", color = headerGreen, fontSize = 16.sp) },
                     colors = TextFieldDefaults.colors(
                         focusedTextColor = headerGreen,
                         unfocusedTextColor = Color.Black,
