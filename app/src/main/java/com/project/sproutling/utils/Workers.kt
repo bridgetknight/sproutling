@@ -1,6 +1,8 @@
 package com.project.sproutling.utils
 
 import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -73,6 +75,7 @@ class WateringReminderWorker(
     workerParams: WorkerParameters
 ) : Worker(context, workerParams) {
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun doWork(): Result {
         val plantStorage = PlantStorage(applicationContext)
         val notificationService = NotificationService(applicationContext)
